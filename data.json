@@ -3,7 +3,7 @@
     {
       "id": "mojang-monitoring-chat",
       "name": "Factcheck: Can Mojang read all messages?",
-      "minimumConfidence": 0.55,
+      "minimumConfidence": 0.60,
       "cooldown": 60000,
       "body": "Mojang **cannot** see every message that is sent on your server. When a message is reported, that message and roughly ten messages surrounding it will be sent to Mojang, nothing else.",
       "triggers": [
@@ -15,7 +15,7 @@
     {
       "id": "mojang-removing-modding",
       "name": "Factcheck: Can Mojang remove modding capabilities?",
-      "minimumConfidence": 0.80,
+      "minimumConfidence": 0.75,
       "cooldown": 60000,
       "body": "Java programs are very easily moddable by nature. It would be near impossible for Mojang to remove modding for Java Edition. Mojang has never shown any negative intent towards modders, nor are there any signs that this will change. For example, Mojang releases obfuscation mappings for the game, which allow modders to more easily understand the game's code, rather than them having to figure it out themselves.",
       "triggers": [

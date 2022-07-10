@@ -26,8 +26,10 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const match = await manager.process('en', message.content);
+
     if (match.sentiment.score <= 0) return;
-    const score = match.classifications.length > 0 ? match.classifications[0].score : 0;
+    const score = match.classifications.length > 0 ? (match.classifications[0].score + match.sentiment.score) / 2 : 0;
+
     const fact = facts.find(f => f.id === match.intent);
 
     if (!fact) return;

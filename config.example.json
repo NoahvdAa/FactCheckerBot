@@ -1,0 +1,8 @@
+{
+  "roleWeight": {
+    "adminRoleId": 5
+  },
+  "logChannel": "channelId",
+  "requiredPointsForFPDelete": 5,
+  "token": "discordToken"
+}

@@ -22,8 +22,7 @@
         "Mojang is removing the ability to mod the game",
         "Mojang is removing the modding",
         "Mojang is removing the modifying",
-        "Mojang is making the game unmoddable",
-        "Mojang is making the game not moddable"
+        "Mojang is making the game unmoddable"
       ]
     },
     {
@@ -33,7 +32,8 @@
       "cooldown": 60000,
       "body": "It is very unlikely that Mojang is going to remove the enforce-secure-profile setting. This is because it is essential for plugins like ViaBackwards to work. If Mojang did decide to shoot themselves in the foot and remove this option, it could easily be readded with a mod or plugin.",
       "triggers": [
-        "Mojang is removing enforce secure profile"
+        "Mojang is removing enforce secure profile",
+        "Mojang is deleting enforce secure profile"
       ]
     },
     {

@@ -26,12 +26,14 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
 
     const match = await manager.process('en', message.content);
+    if (match.sentiment.score <= 0) return;
     const score = match.classifications.length > 0 ? match.classifications[0].score : 0;
     const fact = facts.find(f => f.id === match.intent);
 
     if (!fact) return;
     if (score < fact.minimumConfidence) return;
     if (fact.exact && fact.triggers.filter(t => message.content.indexOf(t) !== -1).length === 0) return;
+    if (fact.minimumWordCount && match.sentiment.numWords < fact.minimumWordCount) return;
 
     matchId++;
     const cooldownKey = `${message.channel.id}-${fact.id}`;
@@ -52,24 +54,28 @@ client.on('messageCreate', async (message) => {
             iconURL: message.member.displayAvatarURL()
         });
 
-    const fpKey = `fp-${matchId}`;
-    const row = new MessageActionRow()
-        .addComponents(
-            new MessageButton()
-                .setCustomId(fpKey)
-                .setLabel('False positive')
-                .setStyle('SECONDARY'),
-        );
+    let fpKey;
+    let row;
+    if (!fact.exact) {
+        fpKey = `fp-${matchId}`;
+        row = new MessageActionRow()
+            .addComponents(
+                new MessageButton()
+                    .setCustomId(fpKey)
+                    .setLabel('False positive')
+                    .setStyle('SECONDARY'),
+            );
+    }
+
+    await kv.set(fpKey, {users: [], points: 0}, 60 * 60 * 1000);
 
     const response = responses[Math.floor(Math.random() * responses.length)]
         .replaceAll('@user', `<@${message.author.id}>`);
 
-    await kv.set(fpKey, {users: [], points: 0}, 60 * 60 * 1000);
-
     await message.reply({
         content: response,
         embeds: [embed],
-        components: [row]
+        components: fact.exact ? undefined : [row]
     });
 
     await kv.set(cooldownKey, true, fact.cooldown);

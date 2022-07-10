@@ -95,7 +95,8 @@ async function handleButtonInteraction(interaction) {
     let points = 1;
     for (const role of interaction.member._roles) {
         const roleWeight = config.roleWeight[role];
-        if (roleWeight > points) points = roleWeight;
+        if (roleWeight <= 0 && roleWeight < points) points = roleWeight;
+        else if (points > 0 && roleWeight > points) points = roleWeight;
     }
     deletionRequest.points += points;
     deletionRequest.users.push(interaction.user.id);

@@ -1,75 +1,97 @@
 const config = require('../config.json');
-const {facts, responses} = require('../data.json');
+const {facts, responses, wrongPhrases} = require('../data.json');
 
 const {Client, Intents, MessageEmbed, MessageActionRow, MessageButton} = require('discord.js');
 const Keyv = require('keyv');
-const {NlpManager} = require('node-nlp');
+const {LSTM} = require('brain.js').recurrent;
+const levenshtein = require('js-levenshtein');
 const {Routes} = require('discord-api-types/v9');
 const {SlashCommandBuilder} = require('@discordjs/builders');
 const {REST} = require('@discordjs/rest');
+const fs = require('fs');
 
 const client = new Client({
     intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES]
 });
-const manager = new NlpManager({languages: ['en'], forceNER: true, nlu: {log: false}});
+const net = new LSTM();
 const kv = new Keyv();
 
+let trainData = [];
 for (const fact of facts) {
     for (const trigger of fact.triggers) {
-        manager.addDocument('en', trigger, fact.id);
+        trainData.push({
+            input: trigger,
+            output: fact.id
+        });
+
+        if (trigger.indexOf('Microsoft') !== -1) trainData.push({
+            input: trigger.replace(/Microsoft/g, 'Mojang'),
+            output: fact.id
+        });
+        if (trigger.indexOf('Mojang') !== -1) trainData.push({
+            input: trigger.replace(/Mojang/g, 'Microsoft'),
+            output: fact.id
+        });
     }
+}
+
+// Common false positives
+for (const wrongPhrase of wrongPhrases) {
+    trainData.push({
+        input: wrongPhrase,
+        output: ''
+    });
 }
 
 let matchId = Date.now(); // Prevent collision after restart
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
+    if (message.author.id !== '499608352624607232') return;
 
-    const match = await manager.process('en', message.content);
-
-    if (match.sentiment.score <= 0) return;
-    const score = match.classifications.length > 0 ? (match.classifications[0].score + match.sentiment.score) / 2 : 0;
-
-    const fact = facts.find(f => f.id === match.intent);
-
+    const match = net.run(message.content);
+    console.log(match)
+    const fact = facts.find(f => match.indexOf(f.id) !== -1 && levenshtein(match, f.id) <= 5);
     if (!fact) return;
-    if (score < fact.minimumConfidence) return;
     if (fact.exact && fact.triggers.filter(t => message.content.indexOf(t) !== -1).length === 0) return;
-    if (fact.minimumWordCount && match.sentiment.numWords < fact.minimumWordCount) return;
 
     matchId++;
+    //log(`${message.author.tag} (${message.author.id}) triggered fact ${fact.id} (${fact.exact ? 'exact, ' : ''}match id ${matchId}) with message: ${message.content}`);
+    //return;
+
     const cooldownKey = `${message.channel.id}-${fact.id}`;
     if (await kv.get(cooldownKey)) {
         const reaction = await message.react('⏳');
         setTimeout(async () => await reaction.users.remove(client.user), 10000);
-        log(`${message.author.tag} (${message.author.id}) triggered cooling down fact ${fact.id} (score ${score}, match id ${matchId}) with message: ${message.content}`);
+        log(`${message.author.tag} (${message.author.id}) triggered cooling down fact ${fact.id} (${fact.exact ? 'exact, ' : ''}match id ${matchId}) with message: ${message.content}`);
         return;
     }
 
     const embed = new MessageEmbed()
-        .setColor(0xFEE75C)
+        .setColor(0xDD7838)
         .setTitle(fact.name)
         .setDescription(fact.body)
         .setTimestamp(new Date())
         .setFooter({
-            text: `Triggered by ${message.author.tag} with ${((score > 1 ? 1 : score) * 100).toFixed(1)}% confidence`,
+            text: `Triggered by ${message.author.tag}`,
             iconURL: message.member.displayAvatarURL()
         });
 
-    let fpKey;
-    let row;
+    let row = new MessageActionRow();
     if (!fact.exact) {
-        fpKey = `fp-${matchId}`;
-        row = new MessageActionRow()
-            .addComponents(
-                new MessageButton()
-                    .setCustomId(fpKey)
-                    .setLabel('False positive')
-                    .setStyle('SECONDARY'),
-            );
+        const cmKey = `cm-${matchId}`;
+        const fpKey = `fp-${matchId}`;
+        row.addComponents(new MessageButton()
+            .setCustomId(cmKey)
+            .setLabel('Correct match')
+            .setStyle('PRIMARY')
+        ).addComponents(new MessageButton()
+            .setCustomId(fpKey)
+            .setLabel('False positive')
+            .setStyle('SECONDARY'));
     }
 
-    await kv.set(fpKey, {users: [], points: 0}, 60 * 60 * 1000);
+    await kv.set(matchId, {users: [], points: 0, fact: fact.id, trigger: message.content}, 60 * 60 * 1000);
 
     const response = responses[Math.floor(Math.random() * responses.length)]
         .replaceAll('@user', `<@${message.author.id}>`);
@@ -82,7 +104,7 @@ client.on('messageCreate', async (message) => {
 
     await kv.set(cooldownKey, true, fact.cooldown);
 
-    log(`${message.author.tag} (${message.author.id}) triggered fact ${fact.id} (score ${score + (fact.exact ? ', exact' : '')}, match id ${matchId}) with message: ${message.content}`);
+    log(`${message.author.tag} (${message.author.id}) triggered fact ${fact.id} (${fact.exact ? 'exact, ' : ''}match id ${matchId}) with message: ${message.content}`);
 });
 
 client.on('interactionCreate', async (interaction) => {
@@ -92,11 +114,14 @@ client.on('interactionCreate', async (interaction) => {
 });
 
 async function handleButtonInteraction(interaction) {
-    const deletionRequest = await kv.get(interaction.customId);
-    if (deletionRequest === undefined) return;
+    const parts = interaction.customId.split('-');
+    const action = parts[0];
+    const id = parts[1];
+    const match = await kv.get(id);
+    if (match === undefined) return;
 
-    if (deletionRequest.users.indexOf(interaction.user.id) !== -1) {
-        await interaction.reply({content: 'You already marked this message as a false positive!', ephemeral: true});
+    if (match.users.indexOf(interaction.user.id) !== -1) {
+        await interaction.reply({content: 'You already flagged this message!', ephemeral: true});
         return;
     }
 
@@ -106,26 +131,56 @@ async function handleButtonInteraction(interaction) {
         if (roleWeight <= 0 && roleWeight < points) points = roleWeight;
         else if (points > 0 && roleWeight > points) points = roleWeight;
     }
-    deletionRequest.points += points;
-    deletionRequest.users.push(interaction.user.id);
+    if (action === 'fp') {
+        match.points -= points;
+    } else {
+        match.points += points;
+    }
+    match.users.push(interaction.user.id);
 
     await interaction.reply({
-        content: 'This message has been marked as a false positive. It will be deleted if it gets enough flags. Thank you for helping us improve the bot.',
+        content: action === 'fp' ? 'This message has been marked as a false positive. It will be deleted if it gets enough flags. Thank you for helping us improve the bot.' : 'This message has been marked as a successful match. Thank you for helping us improve the bot.',
         ephemeral: true
     });
-    log(`${interaction.user.tag} (${interaction.user.id}) marked match ${interaction.customId} as a false positive with ${points} points, message is at ${deletionRequest.points}/${config.requiredPointsForFPDelete}`);
-    if (deletionRequest.points < config.requiredPointsForFPDelete) {
-        await kv.set(interaction.customId, deletionRequest, 60 * 60 * 1000);
+    if (action === 'fp') {
+        log(`${interaction.user.tag} (${interaction.user.id}) marked match ${id} as a false positive with ${points} points, message is at ${match.points}/${config.requiredPointsForFPDelete}`);
+    } else {
+        log(`${interaction.user.tag} (${interaction.user.id}) marked match ${id} as a correct match with ${points} points, message is at ${match.points}/${config.requiredPointsForCM}`);
+    }
+    if (match.points > -config.requiredPointsForFPDelete && match.points < config.requiredPointsForCM) {
+        await kv.set(id, match, 60 * 60 * 1000);
         return;
     }
 
-    await interaction.message.delete();
-    await interaction.editReply({
-        content: 'This message has been deleted because it was flagged as a false positive. Thank you for helping us improve the bot.',
-        ephemeral: true
-    });
-    await kv.delete(interaction.customId);
-    log(`Match ${interaction.customId} has been deleted due to a false positive`);
+    if (action === 'fp') {
+        await interaction.message.delete();
+        await interaction.editReply({
+            content: 'This message has been deleted because it was flagged as a false positive. Thank you for helping us improve the bot.',
+            ephemeral: true
+        });
+        await kv.delete(id);
+        log(`Match ${id} has been deleted due to a false positive`);
+
+        // https://github.com/BrainJS/brain.js/issues/787
+        /*await net.train([{input: match.trigger, output: ''}], {
+            iterations: 5000,
+            errorThresh: 0.001,
+            log: true
+        });
+        saveNet();*/
+    } else {
+        await interaction.message.edit({components: []});
+        await kv.delete(id);
+        log(`Match ${id} has been verified as a correct match`);
+
+        // https://github.com/BrainJS/brain.js/issues/787
+        /*await net.train([{input: match.trigger, output: match.fact}], {
+            iterations: 5000,
+            errorThresh: 0.001,
+            log: true
+        });
+        saveNet();*/
+    }
 }
 
 async function handleCommandInteraction(interaction) {
@@ -170,16 +225,36 @@ client.on('ready', async () => {
     }
 });
 
-(async () => {
-    console.log('Training model...')
-    await manager.train();
-    console.log('Logging in...');
-    client.login(config.token);
-})();
-
 async function log(message) {
     console.log(message);
 
     const channel = await client.channels.fetch(config.logChannel);
-    channel.send(message);
+    await channel.send(message);
 }
+
+function saveNet() {
+    fs.writeFileSync(config.netFile, JSON.stringify({
+        net: net.toJSON()
+    }));
+}
+
+(async () => {
+    let train = true; // allow manual override
+    if (fs.existsSync(config.netFile)) {
+        console.log('Existing net found, loading...');
+        const existingNet = JSON.parse(fs.readFileSync(config.netFile, 'utf8'));
+        net.fromJSON(existingNet.net);
+    } else {
+        train = true;
+    }
+
+    if (train) {
+        console.log('Training net...');
+        await net.train(trainData, {iterations: 5000, errorThresh: 0.001, log: true});
+        console.log('Saving net...');
+        saveNet();
+    }
+
+    console.log('Logging in...');
+    await client.login(config.token);
+})();

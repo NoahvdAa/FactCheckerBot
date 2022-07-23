@@ -3,43 +3,54 @@
     {
       "id": "mojang-monitoring-chat",
       "name": "Factcheck: Can Mojang read all messages?",
-      "minimumConfidence": 0.60,
       "cooldown": 60000,
       "body": "Mojang **cannot** see every message that is sent on your server. When a message is reported, that message and roughly ten messages surrounding it will be sent to Mojang, nothing else.",
       "triggers": [
         "Mojang is reading all chat",
         "Mojang is reading all logs",
-        "Mojang is logging our messages"
+        "Mojang is reading all messages",
+        "Mojang is logging our messages",
+        "Mojang is logging our chats",
+        "Mojang is watching our chats",
+        "Mojang will read all chat",
+        "Mojang will read all logs",
+        "Mojang will read all messages",
+        "Mojang will log our messages",
+        "Mojang will log our chats",
+        "Mojang will watch our chats"
       ]
     },
     {
       "id": "mojang-removing-modding",
       "name": "Factcheck: Can Mojang remove modding capabilities?",
-      "minimumConfidence": 0.75,
       "cooldown": 60000,
       "body": "Java programs are very easily moddable by nature. It would be near impossible for Mojang to remove modding for Java Edition. Mojang has never shown any negative intent towards modders, nor are there any signs that this will change. For example, Mojang releases obfuscation mappings for the game, which allow modders to more easily understand the game's code, rather than them having to figure it out themselves.",
       "triggers": [
-        "Mojang is removing the ability to mod the game",
-        "Mojang is removing the modding",
-        "Mojang is removing the modifying",
-        "Mojang is making the game unmoddable"
+        "Mojang is removing modifications from the game",
+        "Mojang is removing modding",
+        "Mojang is making modding impossible",
+        "Mojang will remove modifications from the game",
+        "Mojang will remove modding",
+        "Mojang will make modding impossible"
       ]
     },
     {
       "id": "remove-enforce-secure-profile",
       "name": "Factcheck: Will Mojang remove the enforce-secure-profile setting?",
-      "minimumConfidence": 0.70,
       "cooldown": 60000,
       "body": "It is very unlikely that Mojang is going to remove the enforce-secure-profile setting. This is because it is essential for plugins like ViaBackwards to work. If Mojang did decide to shoot themselves in the foot and remove this option, it could easily be readded with a mod or plugin.",
       "triggers": [
         "Mojang is removing enforce secure profile",
-        "Mojang is deleting enforce secure profile"
+        "Mojang is deleting enforce secure profile",
+        "Mojang is requiring enforce secure profile",
+        "Mojang will remove enforce secure profile",
+        "Mojang will delete enforce secure profile",
+        "Mojang will require enforce secure profile"
       ]
     },
     {
       "id": "misleading-content",
       "name": "Misleading content",
-      "minimumConfidence": 1,
       "cooldown": 10000,
       "exact": true,
       "body": "The video you linked misses context or contains incorrect/misleading information. We advise you take its contents with heavy skepticism and recommend you do your own research.",
@@ -53,5 +64,9 @@
   "responses": [
     ":wave: Hey @user! Your message appears to contain incorrect information.",
     ":eyes: The message you sent appears to contain incorrect information, @user."
+  ],
+  "wrongPhrases": [
+    "Minecraft",
+    "Mojang"
   ]
 }

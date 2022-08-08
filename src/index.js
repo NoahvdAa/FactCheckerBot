@@ -42,7 +42,6 @@ client.on('messageCreate', async (message) => {
 
     const bestPrediction = predictions[0];
     const confidence = bestPrediction.similarity * 100;
-    console.log(message.content, bestPrediction)
     if (!bestPrediction || confidence < config.minimumConfidence) return;
 
     const fact = facts.find(f => f.id === bestPrediction.result);

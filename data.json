@@ -9,14 +9,18 @@
         "Mojang is reading all chat",
         "Mojang is reading all logs",
         "Mojang is reading all messages",
+        "Mojang is reading private conversations",
         "Mojang is logging our messages",
         "Mojang is logging our chats",
+        "Mojang is logging private conversations",
         "Mojang is watching our chats",
         "Mojang will read all chat",
         "Mojang will read all logs",
         "Mojang will read all messages",
+        "Mojang will read private conversations",
         "Mojang will log our messages",
         "Mojang will log our chats",
+        "Mojang will log private conversations",
         "Mojang will watch our chats"
       ]
     },

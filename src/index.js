@@ -1,69 +1,61 @@
+require('@tensorflow/tfjs-node');
+const use = require('@tensorflow-models/universal-sentence-encoder');
+
 const config = require('../config.json');
-const {facts, responses, wrongPhrases} = require('../data.json');
+const {facts, responses} = require('../data.json');
 
 const {Client, Intents, MessageEmbed, MessageActionRow, MessageButton} = require('discord.js');
 const Keyv = require('keyv');
-const {LSTM} = require('brain.js').recurrent;
-const levenshtein = require('js-levenshtein');
 const {Routes} = require('discord-api-types/v9');
 const {SlashCommandBuilder} = require('@discordjs/builders');
 const {REST} = require('@discordjs/rest');
-const fs = require('fs');
 
 const client = new Client({
     intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES]
 });
-const net = new LSTM();
 const kv = new Keyv();
 
-let trainData = [];
-for (const fact of facts) {
-    for (const trigger of fact.triggers) {
-        trainData.push({
-            input: trigger,
-            output: fact.id
-        });
-
-        if (trigger.indexOf('Microsoft') !== -1) trainData.push({
-            input: trigger.replace(/Microsoft/g, 'Mojang'),
-            output: fact.id
-        });
-        if (trigger.indexOf('Mojang') !== -1) trainData.push({
-            input: trigger.replace(/Mojang/g, 'Microsoft'),
-            output: fact.id
-        });
-    }
-}
-
-// Common false positives
-for (const wrongPhrase of wrongPhrases) {
-    trainData.push({
-        input: wrongPhrase,
-        output: ''
-    });
-}
+let model;
+let dataVector = [];
+let dataToFact = [];
 
 let matchId = Date.now(); // Prevent collision after restart
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
-    if (message.author.id !== '499608352624607232') return;
+    if (message.content.length < 10) return; // not worth the CPU time
 
-    const match = net.run(message.content);
-    console.log(match)
-    const fact = facts.find(f => match.indexOf(f.id) !== -1 && levenshtein(match, f.id) <= 5);
+    const query = await model.embed([message.content]);
+    const inputVector = await query.array();
+
+    const userQueryVector = inputVector[0];
+    const predictions = dataVector
+        .map((dataEntry, dataEntryIndex) => {
+            const similarity = cosineSimilarity(userQueryVector, dataEntry);
+            return {
+                similarity,
+                result: dataToFact[dataEntryIndex]
+            };
+            // sort descending
+        })
+        .sort((a, b) => b.similarity - a.similarity);
+
+    const bestPrediction = predictions[0];
+    const confidence = bestPrediction.similarity * 100;
+    console.log(message.content, bestPrediction)
+    if (!bestPrediction || confidence < config.minimumConfidence) return;
+
+    const fact = facts.find(f => f.id === bestPrediction.result);
     if (!fact) return;
     if (fact.exact && fact.triggers.filter(t => message.content.indexOf(t) !== -1).length === 0) return;
 
     matchId++;
-    //log(`${message.author.tag} (${message.author.id}) triggered fact ${fact.id} (${fact.exact ? 'exact, ' : ''}match id ${matchId}) with message: ${message.content}`);
-    //return;
 
     const cooldownKey = `${message.channel.id}-${fact.id}`;
     if (await kv.get(cooldownKey)) {
         const reaction = await message.react('⏳');
         setTimeout(async () => await reaction.users.remove(client.user), 10000);
-        log(`${message.author.tag} (${message.author.id}) triggered cooling down fact ${fact.id} (${fact.exact ? 'exact, ' : ''}match id ${matchId}) with message: ${message.content}`);
+        log(`${message.author.tag} (${message.author.id}) triggered cooling down fact ${fact.id} (${fact.exact ? 'exact, ' : ''}match id ${matchId}, confidence ${confidence.toFixed(2)}%) with message: ${message.content}`);
         return;
     }
 
@@ -73,7 +65,7 @@ client.on('messageCreate', async (message) => {
         .setDescription(fact.body)
         .setTimestamp(new Date())
         .setFooter({
-            text: `Triggered by ${message.author.tag}`,
+            text: `Triggered by ${message.author.tag} | ${confidence.toFixed(2)}% confidence`,
             iconURL: message.member.displayAvatarURL()
         });
 
@@ -104,7 +96,7 @@ client.on('messageCreate', async (message) => {
 
     await kv.set(cooldownKey, true, fact.cooldown);
 
-    log(`${message.author.tag} (${message.author.id}) triggered fact ${fact.id} (${fact.exact ? 'exact, ' : ''}match id ${matchId}) with message: ${message.content}`);
+    log(`${message.author.tag} (${message.author.id}) triggered fact ${fact.id} (${fact.exact ? 'exact, ' : ''}match id ${matchId}, confidence ${confidence.toFixed(2)}%) with message: ${message.content}`);
 });
 
 client.on('interactionCreate', async (interaction) => {
@@ -160,26 +152,10 @@ async function handleButtonInteraction(interaction) {
         });
         await kv.delete(id);
         log(`Match ${id} has been deleted due to a false positive`);
-
-        // https://github.com/BrainJS/brain.js/issues/787
-        /*await net.train([{input: match.trigger, output: ''}], {
-            iterations: 5000,
-            errorThresh: 0.001,
-            log: true
-        });
-        saveNet();*/
     } else {
         await interaction.message.edit({components: []});
         await kv.delete(id);
         log(`Match ${id} has been verified as a correct match`);
-
-        // https://github.com/BrainJS/brain.js/issues/787
-        /*await net.train([{input: match.trigger, output: match.fact}], {
-            iterations: 5000,
-            errorThresh: 0.001,
-            log: true
-        });
-        saveNet();*/
     }
 }
 
@@ -232,29 +208,47 @@ async function log(message) {
     await channel.send(message);
 }
 
-function saveNet() {
-    fs.writeFileSync(config.netFile, JSON.stringify({
-        net: net.toJSON()
-    }));
-}
-
-(async () => {
-    let train = true; // allow manual override
-    if (fs.existsSync(config.netFile)) {
-        console.log('Existing net found, loading...');
-        const existingNet = JSON.parse(fs.readFileSync(config.netFile, 'utf8'));
-        net.fromJSON(existingNet.net);
-    } else {
-        train = true;
+use.load().then(async (modl) => {
+    model = modl;
+    let f = [];
+    for (const fact of facts) {
+        for (const trigger of fact.triggers) {
+            f.push(trigger);
+            dataToFact.push(fact.id);
+            if (trigger.toLowerCase().indexOf('mojang') !== -1) {
+                f.push(trigger.replace(/mojang/gi, 'microsoft'));
+                dataToFact.push(fact.id)
+            }
+        }
     }
-
-    if (train) {
-        console.log('Training net...');
-        await net.train(trainData, {iterations: 5000, errorThresh: 0.001, log: true});
-        console.log('Saving net...');
-        saveNet();
-    }
+    const data = await model.embed(f);
+    dataVector = await data.array();
 
     console.log('Logging in...');
     await client.login(config.token);
-})();
+});
+
+// multiple with value with corresponding value in the other array at the same index, then sum.
+const dotProduct = (vector1, vector2) => {
+    return vector1.reduce((product, current, index) => {
+        product += current * vector2[index];
+        return product;
+    }, 0);
+};
+
+// sqaure each value in the array and add them all up, then square root.
+const vectorMagnitude = (vector) => {
+    return Math.sqrt(
+        vector.reduce((sum, current) => {
+            sum += current * current;
+            return sum;
+        }, 0)
+    );
+};
+
+const cosineSimilarity = (vector1, vector2) => {
+    return (
+        dotProduct(vector1, vector2) /
+        (vectorMagnitude(vector1) * vectorMagnitude(vector2))
+    );
+};

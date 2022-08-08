@@ -5,6 +5,6 @@
   "logChannel": "channelId",
   "requiredPointsForFPDelete": 5,
   "requiredPointsForCM": 5,
-  "token": "discordToken",
-  "netFile": "./net.json"
+  "minimumConfidence": 90,
+  "token": "discordToken"
 }

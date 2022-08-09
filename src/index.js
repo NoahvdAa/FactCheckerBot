@@ -25,7 +25,7 @@ client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
     if (message.content.length < 10) return; // not worth the CPU time
 
-    const query = await model.embed([message.content]);
+    const query = await model.embed([message.content.toLowerCase()]);
     const inputVector = await query.array();
 
     const userQueryVector = inputVector[0];
@@ -212,11 +212,11 @@ use.load().then(async (modl) => {
     let f = [];
     for (const fact of facts) {
         for (const trigger of fact.triggers) {
-            f.push(trigger);
+            f.push(trigger.toLowerCase());
             dataToFact.push(fact.id);
             if (trigger.toLowerCase().indexOf('mojang') !== -1) {
-                f.push(trigger.replace(/mojang/gi, 'microsoft'));
-                dataToFact.push(fact.id)
+                f.push(trigger.toLowerCase().replace(/mojang/gi, 'microsoft'));
+                dataToFact.push(fact.id);
             }
         }
     }

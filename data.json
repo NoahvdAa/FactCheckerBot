@@ -59,9 +59,7 @@
       "exact": true,
       "body": "The video you linked misses context or contains incorrect/misleading information. We advise you take its contents with heavy skepticism and recommend you do your own research.",
       "triggers": [
-        "https://www.youtube.com/watch?v=p56oN3aAg3I",
-        "https://youtube.com/watch?v=p56oN3aAg3I",
-        "https://youtu.be/p56oN3aAg3I",
+        "p56oN3aAg3I",
         "4d1YM5buqbw",
         "ePNa_CkhcPE",
         "dPobc7jHzKw",

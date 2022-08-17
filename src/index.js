@@ -50,7 +50,7 @@ client.on('messageCreate', async (message) => {
         confidence = bestPrediction.similarity * 100;
         if (!bestPrediction || confidence < config.minimumConfidence) return;
 
-        fact = facts.find(f => f.id === bestPrediction.result);
+        fact = facts.find((fact) => !fact.exact && fact.id === bestPrediction.result);
     }
     if (!fact) return;
 
@@ -217,6 +217,7 @@ use.load().then(async (modl) => {
     model = modl;
     let f = [];
     for (const fact of facts) {
+        if (fact.exact) continue;
         for (const trigger of fact.triggers) {
             f.push(trigger.toLowerCase());
             dataToFact.push(fact.id);

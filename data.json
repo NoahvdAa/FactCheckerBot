@@ -94,9 +94,5 @@
   "responses": [
     ":wave: Hey @user! Your message appears to contain incorrect information.",
     ":eyes: The message you sent appears to contain incorrect information, @user."
-  ],
-  "wrongPhrases": [
-    "Minecraft",
-    "Mojang"
   ]
 }

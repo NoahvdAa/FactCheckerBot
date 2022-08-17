@@ -2,13 +2,13 @@ require('@tensorflow/tfjs-node');
 const use = require('@tensorflow-models/universal-sentence-encoder');
 
 const config = require('../config.json');
-const {facts, responses} = require('../data.json');
+const { facts, responses } = require('../data.json');
 
-const {Client, Intents, MessageEmbed, MessageActionRow, MessageButton} = require('discord.js');
+const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const Keyv = require('keyv');
-const {Routes} = require('discord-api-types/v9');
-const {SlashCommandBuilder} = require('@discordjs/builders');
-const {REST} = require('@discordjs/rest');
+const { Routes } = require('discord-api-types/v9');
+const { SlashCommandBuilder } = require('@discordjs/builders');
+const { REST } = require('@discordjs/rest');
 
 const client = new Client({
     intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES]
@@ -23,30 +23,36 @@ let matchId = Date.now(); // Prevent collision after restart
 
 client.on('messageCreate', async (message) => {
     if (message.author.bot) return;
-    if (message.content.length < 10) return; // not worth the CPU time
 
-    const query = await model.embed([message.content.toLowerCase()]);
-    const inputVector = await query.array();
+    let confidence;
+    let fact = facts.find((fact) => fact.triggers.find((trigger) => message.content.toLowerCase().indexOf(trigger.toLowerCase()) !== -1));
+    if (fact) {
+        confidence = 100;
+    } else {
+        if (message.content.length < 10) return; // not worth the CPU time
 
-    const userQueryVector = inputVector[0];
-    const predictions = dataVector
-        .map((dataEntry, dataEntryIndex) => {
-            const similarity = cosineSimilarity(userQueryVector, dataEntry);
-            return {
-                similarity,
-                result: dataToFact[dataEntryIndex]
-            };
-            // sort descending
-        })
-        .sort((a, b) => b.similarity - a.similarity);
+        const query = await model.embed([message.content.toLowerCase()]);
+        const inputVector = await query.array();
 
-    const bestPrediction = predictions[0];
-    const confidence = bestPrediction.similarity * 100;
-    if (!bestPrediction || confidence < config.minimumConfidence) return;
+        const userQueryVector = inputVector[0];
+        const predictions = dataVector
+            .map((dataEntry, dataEntryIndex) => {
+                const similarity = cosineSimilarity(userQueryVector, dataEntry);
+                return {
+                    similarity,
+                    result: dataToFact[dataEntryIndex]
+                };
+                // sort descending
+            })
+            .sort((a, b) => b.similarity - a.similarity);
 
-    const fact = facts.find(f => f.id === bestPrediction.result);
+        const bestPrediction = predictions[0];
+        confidence = bestPrediction.similarity * 100;
+        if (!bestPrediction || confidence < config.minimumConfidence) return;
+
+        fact = facts.find(f => f.id === bestPrediction.result);
+    }
     if (!fact) return;
-    if (fact.exact && fact.triggers.filter(t => message.content.indexOf(t) !== -1).length === 0) return;
 
     matchId++;
 
@@ -82,7 +88,7 @@ client.on('messageCreate', async (message) => {
             .setStyle('SECONDARY'));
     }
 
-    await kv.set(matchId, {users: [], points: 0, fact: fact.id, trigger: message.content}, 60 * 60 * 1000);
+    await kv.set(matchId, { users: [], points: 0, fact: fact.id, trigger: message.content }, 60 * 60 * 1000);
 
     const response = responses[Math.floor(Math.random() * responses.length)]
         .replaceAll('@user', `<@${message.author.id}>`);
@@ -112,7 +118,7 @@ async function handleButtonInteraction(interaction) {
     if (match === undefined) return;
 
     if (match.users.indexOf(interaction.user.id) !== -1) {
-        await interaction.reply({content: 'You already flagged this message!', ephemeral: true});
+        await interaction.reply({ content: 'You already flagged this message!', ephemeral: true });
         return;
     }
 
@@ -152,7 +158,7 @@ async function handleButtonInteraction(interaction) {
         await kv.delete(id);
         log(`Match ${id} has been deleted due to a false positive`);
     } else {
-        await interaction.message.edit({components: []});
+        await interaction.message.edit({ components: [] });
         await kv.delete(id);
         log(`Match ${id} has been verified as a correct match`);
     }
@@ -163,7 +169,7 @@ async function handleCommandInteraction(interaction) {
 
     const fact = facts.find(f => f.id === factName);
     if (!fact) {
-        interaction.reply({content: 'That fact doesn\'t exist!', ephemeral: true});
+        interaction.reply({ content: 'That fact doesn\'t exist!', ephemeral: true });
         return;
     }
 
@@ -172,13 +178,13 @@ async function handleCommandInteraction(interaction) {
         .setTitle(fact.name)
         .setDescription(fact.body)
         .setTimestamp(new Date());
-    interaction.reply({embeds: [embed]})
+    interaction.reply({ embeds: [embed] })
 }
 
 async function handleAutoCompletionInteraction(interaction) {
     const focusedValue = interaction.options.getFocused();
     const filtered = facts.filter(fact => fact.id.startsWith(focusedValue));
-    await interaction.respond(filtered.map(choice => ({name: choice.id, value: choice.id})),);
+    await interaction.respond(filtered.map(choice => ({ name: choice.id, value: choice.id })),);
 }
 
 client.on('ready', async () => {
@@ -191,10 +197,10 @@ client.on('ready', async () => {
             .setDescription('Requests a specific factoid')
             .addStringOption(option => option.setName('id').setDescription('The fact\'s id').setAutocomplete(true).setRequired(true));
 
-        const rest = new REST({version: '9'}).setToken(config.token);
+        const rest = new REST({ version: '9' }).setToken(config.token);
         await rest.put(
             Routes.applicationCommands(client.user.id),
-            {body: [command.toJSON()]},
+            { body: [command.toJSON()] },
         );
         console.log('Registered commands!');
     }

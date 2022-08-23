@@ -58,8 +58,7 @@ client.on('messageCreate', async (message) => {
 
     const cooldownKey = `${message.channel.id}-${fact.id}`;
     if (await kv.get(cooldownKey)) {
-        const reaction = await message.react('⏳');
-        setTimeout(async () => await reaction.users.remove(client.user), 10000);
+        await message.react('⏳');
         log(`${message.author.tag} (${message.author.id}) triggered cooling down fact ${fact.id} (${fact.exact ? 'exact, ' : ''}match id ${matchId}, confidence ${confidence.toFixed(2)}%) with message: ${message.content}`);
         return;
     }

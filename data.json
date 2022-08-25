@@ -97,12 +97,14 @@
         "XRLeq54g0HE",
         "SUR8NSv4RMQ",
         "hFQaBrdh7vU",
-        "FN_gBsWVS6o"
+        "FN_gBsWVS6o",
+        "f4BJLMdodYo"
       ]
     }
   ],
   "responses": [
     ":wave: Hey @user! Your message appears to contain incorrect information.",
-    ":eyes: The message you sent appears to contain incorrect information, @user."
+    ":eyes: The message you sent appears to contain incorrect information, @user.",
+    "Heyo you seem to have sent something with wrong/incorrect info :eyes:, @user"
   ]
 }
